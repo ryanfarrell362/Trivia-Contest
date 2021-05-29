@@ -1,0 +1,5 @@
+{
+    "discord": { // Place your discord api key here
+        "token": ""
+    }
+}
