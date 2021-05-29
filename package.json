@@ -1,0 +1,23 @@
+{
+  "name": "trivia-contest",
+  "version": "1.0.0",
+  "description": "Discord bot for trivia",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ryanfarrell362/Trivia-Contest.git"
+  },
+  "author": "Ryan Farrell",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ryanfarrell362/Trivia-Contest/issues"
+  },
+  "homepage": "https://github.com/ryanfarrell362/Trivia-Contest#readme",
+  "dependencies": {
+    "discord-buttons": "^2.4.1",
+    "discord.js": "^12.5.3"
+  }
+}
