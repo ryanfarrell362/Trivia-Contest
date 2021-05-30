@@ -4,10 +4,6 @@ const disbut = require('discord-buttons')(client);
 
 const config = require('./config.json');
 
-client.on('ready', () => {
-    console.log(`Logged in as ${client.user.tag}!`);
-});
-
 let channelInfo;
 let roleInfo;
 let serverInfo;
@@ -15,11 +11,14 @@ let serverInfo;
 let messageEmbed;
 
 let i;
+let j;
 
 let contestants = {
     "user": "",
     "answer": ""
 }
+
+let contestantsArray = new Array ();
 
 let questions = {
     "questions": ["In which continent is Mongolia located?", "What type of meat is on a traditional Reuben sandwich?", "What part of the world was once known as Cathay?", "What kind of animal is a peregrine?", "What is your astrological sign if you were born on Halloween?"],
@@ -32,6 +31,10 @@ let questions = {
 
 let numContestants = 0;
 let numAnswers = 0;
+
+client.on('ready', () => {
+    console.log(`Logged in as ${client.user.tag}!`);
+});
 
 client.on('message', msg => {
     if (msg.content === '!start') {
@@ -56,12 +59,13 @@ client.on('message', msg => {
 });
 
 client.on('clickButton', async (button) => {
+    // Remember to puth this listener in my signup function when I make it because it won't work otherwise
     if (button.id === 'signup') {
         let roleExist = false;
         let i;
 
         for (i = 0; i < numContestants; i ++) {
-            if (button.clicker.user.id == contestants [i].user.user.id) {
+            if (button.clicker.user.id == contestantsArray [i].user.user.id) {
                 roleExist = true;
             }
         }
@@ -85,28 +89,12 @@ client.on('clickButton', async (button) => {
             messageEmbed.edit (newEmbed);
 
             // Add user to the array of contestants
-            contestants [numContestants - 1] = {
+            let temp = {
                 "user": button.clicker,
                 "answer": "blank"
             }
-        } else if (button.id === 'answer1') {
-            for (i = 0; i < numContestants; i ++) {
-                if (button.clicker.user.id == contestants [i].user.user.id) {
-                    contestants [i].answer = "green";
-                }
-            }
-        } else if (button.id === 'answer2') {
-            for (i = 0; i < numContestants; i ++) {
-                if (button.clicker.user.id == contestants [i].user.user.id) {
-                    contestants [i].answer = "blurple";
-                }
-            }
-        } else if (button.id === 'answer3') {
-            for (i = 0; i < numContestants; i ++) {
-                if (button.clicker.user.id == contestants [i].user.user.id) {
-                    contestants [i].answer = "red";
-                }
-            }
+
+            contestantsArray.push (temp);
         }
     }
 });
@@ -209,6 +197,28 @@ async function game (msg) {
         .setID('answer3')
         .setDisabled ()
 
+        client.on('clickButton', async (button) => {
+            if (button.id === 'answer1') {
+                for (j = 0; j < numContestants; j ++) {
+                    if (button.clicker.user.id == contestantsArray [j].user.user.id) {
+                        contestantsArray [j].answer = questions.answer1 [i];
+                    }
+                }
+            } else if (button.id === 'answer2') {
+                for (j = 0; j < numContestants; j ++) {
+                    if (button.clicker.user.id == contestantsArray [j].user.user.id) {
+                        contestantsArray [j].answer = questions.answer2 [i];
+                    }
+                }
+            } else if (button.id === 'answer3') {
+                for (j = 0; j < numContestants; j ++) {
+                    if (button.clicker.user.id == contestantsArray [j].user.user.id) {
+                        contestantsArray [j].answer = questions.answer3 [i];
+                    }
+                }
+            }
+        });
+
         await sleep (15000);
 
         messageEmbed.edit ({
@@ -227,12 +237,53 @@ async function game (msg) {
 
         msg.channel.send (exampleEmbed3);
 
+        await sleep (3000);
+
+        // Figure out who got it right, kick out the ones that didn't, then ping the ones who did and say how many got it right
+        let anyCorrect = false;
+
+        for (j = 0; j < numContestants; j ++) {
+            if (contestantsArray [j].answer.localeCompare (questions.answer [i]) == 0) {
+                anyCorrect = true;
+                break;
+            }
+        }
+
+        if (anyCorrect == false) {
+            // If nobody got it correct, the winners are everyone from who made it to this round
+            break;
+        } else {
+            // Otherwise find the people who got it wrong and kick them out
+            for (j = numContestants - 1; j > -1; j --) {
+                if (contestantsArray [j].answer.localeCompare (questions.answer [i]) != 0) {
+                    let role = contestantsArray [j].user.member.guild.roles.cache.find(r => r.name === "Trivia Contestant");
+
+                    contestantsArray [j].user.member.roles.remove (role).catch(console.error);
+
+                    // Figure out how to remove element from an array
+                    contestantsArray.splice (j, 1);
+                    numContestants --;
+                }
+            }
+
+            if (numContestants == 1) {
+                // If there's one person left then the game is over with 1 winner
+
+                break;
+            }
+        }
+
+        // Print the role and announce how many people got the right answer here
+
         await sleep (5000);
     }
+
+    // If there are still players left after all questions have been exhausted then the game is over
+    // Write all winners here
 }
 
 function sleep (ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 client.login(config.discord.token);
