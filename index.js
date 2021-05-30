@@ -360,24 +360,26 @@ async function game (msg) {
         }
 
         // Print the role and announce how many people got the right answer here
-        const nextRoundEmbed = new Discord.MessageEmbed()
-        .setColor('#0099ff')
-        .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
-        .setTitle (`${numContestants} contestants got that question right!`)
-        .setDescription ('1 minute until the next round!\nIf you receive a ping then you are eligible for the next round!')
-        .setTimestamp()
+        if ((i + 1) != 5) {
+            const nextRoundEmbed = new Discord.MessageEmbed()
+            .setColor('#0099ff')
+            .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
+            .setTitle (`${numContestants} contestants got that question right!`)
+            .setDescription ('1 minute until the next round!\nIf you receive a ping then you are eligible for the next round!')
+            .setTimestamp()
 
-        msg.channel.send (nextRoundEmbed);
+            msg.channel.send (nextRoundEmbed);
 
-        let role = contestantsArray [0].user.member.guild.roles.cache.find(r => r.name === "Trivia Contestant");
+            let role = contestantsArray [0].user.member.guild.roles.cache.find(r => r.name === "Trivia Contestant");
 
-        msg.channel.send (`<@&${role.id}>`);
+            msg.channel.send (`<@&${role.id}>`);
 
-        for (j = 0; j < numContestants; j ++) {
-            contestantsArray [j].answer = "blank";
+            for (j = 0; j < numContestants; j ++) {
+                contestantsArray [j].answer = "blank";
+            }
+
+            await sleep (5000);
         }
-
-        await sleep (5000);
     }
 
     // If there are still players left after all questions have been exhausted then the game is over
