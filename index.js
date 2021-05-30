@@ -179,24 +179,6 @@ async function game (msg) {
                 messageEmbed = msg2;
             });
 
-        answer1 = new disbut.MessageButton()
-        .setStyle('green')
-        .setLabel(`${questions.answer1 [i]}`)
-        .setID('answer1')
-        .setDisabled ()
-
-        answer2 = new disbut.MessageButton()
-        .setStyle('blurple')
-        .setLabel(`${questions.answer2 [i]}`)
-        .setID('answer2')
-        .setDisabled ()
-
-        answer3 = new disbut.MessageButton()
-        .setStyle('red')
-        .setLabel(`${questions.answer3 [i]}`)
-        .setID('answer3')
-        .setDisabled ()
-
         client.on('clickButton', async (button) => {
             if (button.id === 'answer1') {
                 for (j = 0; j < numContestants; j ++) {
@@ -220,6 +202,24 @@ async function game (msg) {
         });
 
         await sleep (15000);
+
+        answer1 = new disbut.MessageButton()
+        .setStyle('green')
+        .setLabel(`${questions.answer1 [i]}`)
+        .setID('answer1')
+        .setDisabled ()
+
+        answer2 = new disbut.MessageButton()
+        .setStyle('blurple')
+        .setLabel(`${questions.answer2 [i]}`)
+        .setID('answer2')
+        .setDisabled ()
+
+        answer3 = new disbut.MessageButton()
+        .setStyle('red')
+        .setLabel(`${questions.answer3 [i]}`)
+        .setID('answer3')
+        .setDisabled ()
 
         messageEmbed.edit ({
             buttons: [
@@ -337,29 +337,31 @@ async function game (msg) {
 
     // If there are still players left after all questions have been exhausted then the game is over
     // Write all winners here
-    let mention = (`<@${contestantsArray [0].user.user.id}>`);
+    if (numContestants > 1) {
+        let mention = (`<@${contestantsArray [0].user.user.id}>`);
 
-    for (j = 1; j < numContestants; j ++) {
-        mention.concat (`\n<@${contestantsArray [j].user.user.id}>`)
-    }
+        for (j = 1; j < numContestants; j ++) {
+            mention.concat (`\n<@${contestantsArray [j].user.user.id}>`)
+        }
 
-    const winnerEmbed = new Discord.MessageEmbed()
-    .setColor('#0099ff')
-    .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
-    .setTitle ('The game is over!')
-    .addField ('The winners are:', mention)
-    .setTimestamp()
+        const winnerEmbed = new Discord.MessageEmbed()
+        .setColor('#0099ff')
+        .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
+        .setTitle ('The game is over!')
+        .addField ('The winners are:', mention)
+        .setTimestamp()
 
-    msg.channel.send (winnerEmbed);
+        msg.channel.send (winnerEmbed);
 
-    // Then remove the contestant role from everyone
-    for (j = numContestants - 1; j > -1; j --) {
-        let role = contestantsArray [j].user.member.guild.roles.cache.find(r => r.name === "Trivia Contestant");
+        // Then remove the contestant role from everyone
+        for (j = numContestants - 1; j > -1; j --) {
+            let role = contestantsArray [j].user.member.guild.roles.cache.find(r => r.name === "Trivia Contestant");
 
-        contestantsArray [j].user.member.roles.remove (role).catch(console.error);
+            contestantsArray [j].user.member.roles.remove (role).catch(console.error);
 
-        contestantsArray.splice (j, 1);
-        numContestants --;
+            contestantsArray.splice (j, 1);
+            numContestants --;
+        }
     }
 }
 
