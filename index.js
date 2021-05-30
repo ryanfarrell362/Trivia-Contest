@@ -59,7 +59,8 @@ client.on('message', msg => {
 });
 
 client.on('clickButton', async (button) => {
-    // Remember to puth this listener in my signup function when I make it because it won't work otherwise
+    button.defer ()
+    // Remember to put this listener in my signup function when I make it because it won't work otherwise
     if (button.id === 'signup') {
         let roleExist = false;
         let i;
@@ -72,9 +73,9 @@ client.on('clickButton', async (button) => {
 
         if (roleExist == false) {
             // First give the member the contestant role
-            let role = button.clicker.member.guild.roles.cache.find(r => r.name === "Trivia Contestant");
+            let role = await button.clicker.member.guild.roles.cache.find(r => r.name === "Trivia Contestant");
 
-            button.clicker.member.roles.add (role).catch(console.error);
+            await button.clicker.member.roles.add (role).catch(console.error);
             numContestants ++;
 
             // Then update the embed with the number of registrants
@@ -136,7 +137,46 @@ async function game (msg) {
 
     messageEmbed.edit ({ button: button, embed: messageEmbed [0] });
 
+    numAnswers = 0;
+
+    client.on('clickButton', async (button) => {
+        if (button.id === 'answer1') {
+            for (j = 0; j < numContestants; j ++) {
+                if (button.clicker.user.id == contestantsArray [j].user.user.id) {
+                    if (contestantsArray [j].answer.localeCompare ("blank") == 0) {
+                        numAnswers ++;
+                    }
+
+                    contestantsArray [j].answer = questions.answer1 [i];
+                }
+            }
+        } else if (button.id === 'answer2') {
+            for (j = 0; j < numContestants; j ++) {
+                if (button.clicker.user.id == contestantsArray [j].user.user.id) {
+                    if (contestantsArray [j].answer.localeCompare ("blank") == 0) {
+                        numAnswers ++;
+                    }
+
+                    contestantsArray [j].answer = questions.answer2 [i];
+                }
+            }
+        } else if (button.id === 'answer3') {
+            for (j = 0; j < numContestants; j ++) {
+                if (button.clicker.user.id == contestantsArray [j].user.user.id) {
+                    if (contestantsArray [j].answer.localeCompare ("blank") == 0) {
+                        numAnswers ++;
+                    }
+
+                    contestantsArray [j].answer = questions.answer3 [i];
+                }
+            }
+        }
+    });
+
     for (i = 0; i < 5; i ++) {
+        // Set all player answers to blank again and set numAnswers to 0
+        numAnswers = 0;
+
         const exampleEmbed = new Discord.MessageEmbed()
         .setColor('#0099ff')
         .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
@@ -179,29 +219,28 @@ async function game (msg) {
                 messageEmbed = msg2;
             });
 
-        client.on('clickButton', async (button) => {
-            if (button.id === 'answer1') {
-                for (j = 0; j < numContestants; j ++) {
-                    if (button.clicker.user.id == contestantsArray [j].user.user.id) {
-                        contestantsArray [j].answer = questions.answer1 [i];
-                    }
-                }
-            } else if (button.id === 'answer2') {
-                for (j = 0; j < numContestants; j ++) {
-                    if (button.clicker.user.id == contestantsArray [j].user.user.id) {
-                        contestantsArray [j].answer = questions.answer2 [i];
-                    }
-                }
-            } else if (button.id === 'answer3') {
-                for (j = 0; j < numContestants; j ++) {
-                    if (button.clicker.user.id == contestantsArray [j].user.user.id) {
-                        contestantsArray [j].answer = questions.answer3 [i];
-                    }
-                }
-            }
-        });
+        let timer;
+        let newEmbed;
 
-        await sleep (15000);
+        for (timer = 12; timer > -1; timer -= 3) {
+            await sleep (3000);
+
+            newEmbed = new Discord.MessageEmbed()
+            .setColor('#0099ff')
+            .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
+            .setTitle (`${questions.questions [i]}`)
+            .setDescription (`You have ${timer} seconds to answer`)
+            .setTimestamp()
+            .setFooter(`${numAnswers} answered`, 'https://i.imgur.com/dhA5PXS.png');
+
+            messageEmbed.edit ({
+                buttons: [
+                    answer1, answer2, answer3
+                ],
+                embed: newEmbed }).then (msg2 => {
+                    messageEmbed = msg2;
+                });
+        }
 
         answer1 = new disbut.MessageButton()
         .setStyle('green')
@@ -221,11 +260,19 @@ async function game (msg) {
         .setID('answer3')
         .setDisabled ()
 
+        newEmbed = new Discord.MessageEmbed()
+        .setColor('#0099ff')
+        .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
+        .setTitle (`${questions.questions [i]}`)
+        .setDescription (`You have 0 seconds to answer`)
+        .setTimestamp()
+        .setFooter(`${numAnswers} answered`, 'https://i.imgur.com/dhA5PXS.png');
+
         messageEmbed.edit ({
             buttons: [
                 answer1, answer2, answer3
             ],
-            embed: exampleEmbed2 }).then (msg2 => {
+            embed: newEmbed }).then (msg2 => {
                 messageEmbed = msg2;
             });
 
@@ -254,7 +301,8 @@ async function game (msg) {
             let mention = (`<@${contestantsArray [0].user.user.id}>`);
 
             for (j = 1; j < numContestants; j ++) {
-                mention.concat (`\n<@${contestantsArray [j].user.user.id}>`)
+                let concatString = (`\n<@${contestantsArray [j].user.user.id}>`);
+                mention = mention.concat (concatString);
             }
 
             const winnerEmbed = new Discord.MessageEmbed()
@@ -325,11 +373,8 @@ async function game (msg) {
 
         msg.channel.send (`<@&${role.id}>`);
 
-        // Set all player answers to blank again and set numAnswers to 0s
-        numAnswers = 0;
-
         for (j = 0; j < numContestants; j ++) {
-            contestantsArray.answer = "blank";
+            contestantsArray [j].answer = "blank";
         }
 
         await sleep (5000);
@@ -341,7 +386,8 @@ async function game (msg) {
         let mention = (`<@${contestantsArray [0].user.user.id}>`);
 
         for (j = 1; j < numContestants; j ++) {
-            mention.concat (`\n<@${contestantsArray [j].user.user.id}>`)
+            let concatString = (`\n<@${contestantsArray [j].user.user.id}>`);
+            mention = mention.concat (concatString);
         }
 
         const winnerEmbed = new Discord.MessageEmbed()
