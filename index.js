@@ -140,8 +140,8 @@ async function game (msg) {
         const exampleEmbed = new Discord.MessageEmbed()
         .setColor('#0099ff')
         .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
-        .setTitle ('The next category is:')
-        .setDescription(`${questions.category [i]}`)
+        .setTitle (`Round ${(i + 1)} of 5`) // Change the 5 depending on the number of questions
+        .setDescription(`The category is: ${questions.category [i]}!`)
         .setTimestamp()
 
         msg.channel.send (exampleEmbed);
@@ -237,7 +237,7 @@ async function game (msg) {
 
         msg.channel.send (exampleEmbed3);
 
-        await sleep (3000);
+        await sleep (7000);
 
         // Figure out who got it right, kick out the ones that didn't, then ping the ones who did and say how many got it right
         let anyCorrect = false;
@@ -251,6 +251,30 @@ async function game (msg) {
 
         if (anyCorrect == false) {
             // If nobody got it correct, the winners are everyone from who made it to this round
+            let mention = (`<@${contestantsArray [0].user.user.id}>`);
+
+            for (j = 1; j < numContestants; j ++) {
+                mention.concat (`\n<@${contestantsArray [j].user.user.id}>`)
+            }
+
+            const winnerEmbed = new Discord.MessageEmbed()
+            .setColor('#0099ff')
+            .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
+            .setTitle ('The game is over!')
+            .addField ('The winners are:', mention)
+            .setTimestamp()
+
+            msg.channel.send (winnerEmbed);
+
+            for (j = numContestants - 1; j > -1; j --) {
+                let role = contestantsArray [j].user.member.guild.roles.cache.find(r => r.name === "Trivia Contestant");
+
+                contestantsArray [j].user.member.roles.remove (role).catch(console.error);
+
+                contestantsArray.splice (j, 1);
+                numContestants --;
+            }
+
             break;
         } else {
             // Otherwise find the people who got it wrong and kick them out
@@ -268,18 +292,75 @@ async function game (msg) {
 
             if (numContestants == 1) {
                 // If there's one person left then the game is over with 1 winner
+                let mention = (`<@${contestantsArray [0].user.user.id}>`);
+
+                const winnerEmbed = new Discord.MessageEmbed()
+                .setColor('#0099ff')
+                .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
+                .setTitle ('The game is over!')
+                .addField ('The winner is:', mention)
+                .setTimestamp()
+
+                msg.channel.send (winnerEmbed);
+
+                let role = contestantsArray [0].user.member.guild.roles.cache.find(r => r.name === "Trivia Contestant");
+
+                contestantsArray [0].user.member.roles.remove (role).catch(console.error);
 
                 break;
             }
         }
 
         // Print the role and announce how many people got the right answer here
+        const nextRoundEmbed = new Discord.MessageEmbed()
+        .setColor('#0099ff')
+        .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
+        .setTitle (`${numContestants} contestants got that question right!`)
+        .setDescription ('1 minute until the next round!\nIf you receive a ping then you are eligible for the next round!')
+        .setTimestamp()
+
+        msg.channel.send (nextRoundEmbed);
+
+        let role = contestantsArray [0].user.member.guild.roles.cache.find(r => r.name === "Trivia Contestant");
+
+        msg.channel.send (`<@&${role.id}>`);
+
+        // Set all player answers to blank again and set numAnswers to 0s
+        numAnswers = 0;
+
+        for (j = 0; j < numContestants; j ++) {
+            contestantsArray.answer = "blank";
+        }
 
         await sleep (5000);
     }
 
     // If there are still players left after all questions have been exhausted then the game is over
     // Write all winners here
+    let mention = (`<@${contestantsArray [0].user.user.id}>`);
+
+    for (j = 1; j < numContestants; j ++) {
+        mention.concat (`\n<@${contestantsArray [j].user.user.id}>`)
+    }
+
+    const winnerEmbed = new Discord.MessageEmbed()
+    .setColor('#0099ff')
+    .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
+    .setTitle ('The game is over!')
+    .addField ('The winners are:', mention)
+    .setTimestamp()
+
+    msg.channel.send (winnerEmbed);
+
+    // Then remove the contestant role from everyone
+    for (j = numContestants - 1; j > -1; j --) {
+        let role = contestantsArray [j].user.member.guild.roles.cache.find(r => r.name === "Trivia Contestant");
+
+        contestantsArray [j].user.member.roles.remove (role).catch(console.error);
+
+        contestantsArray.splice (j, 1);
+        numContestants --;
+    }
 }
 
 function sleep (ms) {
