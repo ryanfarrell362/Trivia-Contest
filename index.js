@@ -8,7 +8,7 @@ let channelInfo;
 let roleInfo;
 let serverInfo;
 
-let messageEmbed;
+let latestEmbed; // This stores the most recently sent embed so that I can edit it when needed
 
 let i, j;
 
@@ -25,7 +25,7 @@ let questions = {
 
 let numContestants = 0;
 let numAnswers = 0;
-let numRounds = 5;
+let numRounds = 5; // Change this depending on the number of rounds you want to have
 
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
@@ -55,20 +55,11 @@ client.on("guildCreate", guild => {
 
 client.on('message', msg => {
     if (msg.content === '!start') {
-        const exampleEmbed = new Discord.MessageEmbed()
-        .setColor('#0099ff')
-        .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
-        .setDescription('Trivia starts in 1 hour! Sign up using the button below!')
-        .setTimestamp()
-        .setFooter(`${numContestants} registered`, 'https://i.imgur.com/dhA5PXS.png');
+        let signupEmbed = createSignupEmbed ();
+        let signupButton = createButtons ('green', 'Sign up', 'signup', false);
 
-        const button = new disbut.MessageButton()
-        .setStyle('green')
-        .setLabel('Sign up')
-        .setID('signup')
-
-        msg.channel.send({ button: button, embed: exampleEmbed }).then (msg2 => {
-            messageEmbed = msg2;
+        msg.channel.send({ button: signupButton, embed: signupEmbed }).then (msg2 => {
+            latestEmbed = msg2;
         });
     } else if (msg.content === '!start2') {
         game (msg);
@@ -95,14 +86,7 @@ client.on('clickButton', async (button) => {
             numContestants ++;
 
             // Then update the embed with the number of registrants
-            const newEmbed = new Discord.MessageEmbed ()
-            .setColor('#0099ff')
-            .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
-            .setDescription('Trivia starts in 1 hour! Sign up using the button below!')
-            .setTimestamp()
-            .setFooter (`${numContestants} registered`, 'https://i.imgur.com/dhA5PXS.png');
-
-            messageEmbed.edit (newEmbed);
+            latestEmbed.edit (createSignupEmbed ());
 
             // Add user to the array of contestants
             contestantsArray.push ({
@@ -120,13 +104,9 @@ client.on('error', (err) => {
 
 async function game (msg) {
     // Disable the signup button and edit the message
-    const button = new disbut.MessageButton()
-    .setStyle('green')
-    .setLabel('Sign up')
-    .setID('signup')
-    .setDisabled ();
+    let signupButton = createButtons ('green', 'Sign up', 'signup', true);
 
-    messageEmbed.edit ({ button: button, embed: messageEmbed [0] });
+    latestEmbed.edit ({ button: signupButton, embed: latestEmbed [0] });
 
     // These onclick listeners need to be inside the async function otherwise they don't work during the sleeps
     client.on('clickButton', async (button) => {
@@ -139,112 +119,68 @@ async function game (msg) {
         // Set all player answers to blank again and set numAnswers to 0
         numAnswers = 0;
 
-        const exampleEmbed = new Discord.MessageEmbed()
+        let roundAnnounceEmbed = new Discord.MessageEmbed()
         .setColor('#0099ff')
         .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
         .setTitle (`Round ${(i + 1)} of ${numRounds}`)
         .setDescription(`The category is: ${questions.category [i]}!`)
         .setTimestamp()
 
-        msg.channel.send (exampleEmbed);
+        msg.channel.send (roundAnnounceEmbed);
 
-        await sleep (5000);
+        await sleep (5000); // Wait 5 seconds after announcing the category to post the question
 
-        const exampleEmbed2 = new Discord.MessageEmbed()
-        .setColor('#0099ff')
-        .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
-        .setTitle (`${questions.questions [i]}`)
-        .setDescription ('You have 15 seconds to answer')
-        .setTimestamp()
-        .setFooter(`${numAnswers} answered`, 'https://i.imgur.com/dhA5PXS.png');
+        let timer = 15;
+        let questionEmbed = createQuestionEmbed (timer);
 
-        let answer1 = new disbut.MessageButton()
-        .setStyle('green')
-        .setLabel(`${questions.answer1 [i]}`)
-        .setID('answer1')
-
-        let answer2 = new disbut.MessageButton()
-        .setStyle('blurple')
-        .setLabel(`${questions.answer2 [i]}`)
-        .setID('answer2')
-
-        let answer3 = new disbut.MessageButton()
-        .setStyle('red')
-        .setLabel(`${questions.answer3 [i]}`)
-        .setID('answer3')
+        let answer1 = createButtons ('green', questions.answer1 [i], 'answer1', false);
+        let answer2 = createButtons ('blurple', questions.answer2 [i], 'answer2', false);
+        let answer3 = createButtons ('red', questions.answer3 [i], 'answer3', false);
 
         msg.channel.send({
             buttons: [
                 answer1, answer2, answer3
             ],
-            embed: exampleEmbed2 }).then (msg2 => {
-                messageEmbed = msg2;
+            embed: questionEmbed }).then (msg2 => {
+                latestEmbed = msg2;
             });
-
-        let timer;
-        let newEmbed;
 
         for (timer = 12; timer > -1; timer -= 3) {
             await sleep (3000);
 
-            newEmbed = new Discord.MessageEmbed()
-            .setColor('#0099ff')
-            .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
-            .setTitle (`${questions.questions [i]}`)
-            .setDescription (`You have ${timer} seconds to answer`)
-            .setTimestamp()
-            .setFooter(`${numAnswers} answered`, 'https://i.imgur.com/dhA5PXS.png');
+            questionEmbed = createQuestionEmbed (timer);
 
-            messageEmbed.edit ({
+            latestEmbed.edit ({
                 buttons: [
                     answer1, answer2, answer3
                 ],
-                embed: newEmbed }).then (msg2 => {
-                    messageEmbed = msg2;
+                embed: questionEmbed }).then (msg2 => {
+                    latestEmbed = msg2;
                 });
         }
 
-        answer1 = new disbut.MessageButton()
-        .setStyle('green')
-        .setLabel(`${questions.answer1 [i]}`)
-        .setID('answer1')
-        .setDisabled ()
+        answer1 = createButtons ('green', questions.answer1 [i], 'answer1', true);
+        answer2 = createButtons ('blurple', questions.answer2 [i], 'answer2', true);
+        answer3 = createButtons ('red', questions.answer3 [i], 'answer3', true);
 
-        answer2 = new disbut.MessageButton()
-        .setStyle('blurple')
-        .setLabel(`${questions.answer2 [i]}`)
-        .setID('answer2')
-        .setDisabled ()
+        timer = 0;
+        questionEmbed = createQuestionEmbed (timer);
 
-        answer3 = new disbut.MessageButton()
-        .setStyle('red')
-        .setLabel(`${questions.answer3 [i]}`)
-        .setID('answer3')
-        .setDisabled ()
-
-        newEmbed = new Discord.MessageEmbed()
-        .setColor('#0099ff')
-        .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
-        .setTitle (`${questions.questions [i]}`)
-        .setDescription (`You have 0 seconds to answer`)
-        .setTimestamp()
-        .setFooter(`${numAnswers} answered`, 'https://i.imgur.com/dhA5PXS.png');
-
-        messageEmbed.edit ({
+        latestEmbed.edit ({
             buttons: [
                 answer1, answer2, answer3
             ],
-            embed: newEmbed }).then (msg2 => {
-                messageEmbed = msg2;
+            embed: questionEmbed }).then (msg2 => {
+                latestEmbed = msg2;
             });
 
-        const exampleEmbed3 = new Discord.MessageEmbed()
+        const timeOverEmbed = new Discord.MessageEmbed()
         .setColor('#0099ff')
         .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
         .setTitle ('Time\'s up!')
         .setDescription (`The answer was: ${questions.answer [i]}`)
 
-        msg.channel.send (exampleEmbed3);
+        msg.channel.send (timeOverEmbed);
 
         await sleep (7000);
 
@@ -261,9 +197,7 @@ async function game (msg) {
         if (anyCorrect == false) {
             // If nobody got it correct, the winners are everyone from who made it to this round
             printWinners (msg);
-
             roleReset ();
-
             break;
         } else {
             // Otherwise find the people who got it wrong and kick them out
@@ -276,9 +210,7 @@ async function game (msg) {
             if (numContestants == 1) {
                 // If there's one person left then the game is over
                 printWinners (msg);
-
                 roleReset ();
-
                 break;
             }
         }
@@ -336,6 +268,48 @@ function answer (button) {
             }
         }
     }
+}
+
+function createSignupEmbed () {
+    let signupEmbed = new Discord.MessageEmbed()
+    .setColor('#0099ff')
+    .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
+    .setDescription('Trivia starts in 1 hour! Sign up using the button below!')
+    .setTimestamp()
+    .setFooter(`${numContestants} registered`, 'https://i.imgur.com/dhA5PXS.png');
+
+    return signupEmbed;
+}
+
+function createQuestionEmbed (timer) {
+    let questionEmbed = new Discord.MessageEmbed()
+    .setColor('#0099ff')
+    .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
+    .setTitle (`${questions.questions [i]}`)
+    .setDescription (`You have ${timer} seconds to answer`)
+    .setTimestamp()
+    .setFooter(`${numAnswers} answered`, 'https://i.imgur.com/dhA5PXS.png');
+
+    return questionEmbed;
+}
+
+function createButtons (style, label, id, isDisabled) {
+    let answerButton;
+
+    if (isDisabled == false) {
+        answerButton = new disbut.MessageButton()
+        .setStyle(style)
+        .setLabel(label)
+        .setID(id)
+    } else {
+        answerButton = new disbut.MessageButton()
+        .setStyle(style)
+        .setLabel(label)
+        .setID(id)
+        .setDisabled ();
+    }
+
+    return answerButton;
 }
 
 function roleReset () {
