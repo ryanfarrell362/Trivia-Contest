@@ -3,6 +3,9 @@ from bs4 import BeautifulSoup
 import time
 import json
 
+# NOTE
+# Please run this with the browser on 25% scale otherwise the bot will click on an ad at some point
+
 data = {}
 data ['questions'] = []
 
@@ -21,10 +24,11 @@ while num_unique > 0:
 
     for question in question_list:
         button = question.find_element_by_class_name ("trivia-answer")
+        #if the bot clicks on an ad again put the 1 second wait here
         button.click ()
-        js_scroll = "window.scrollBy(0, 500);"
+        js_scroll = "window.scrollBy(0, 400);"
         driver.execute_script(js_scroll)
-        time.sleep (3)
+        time.sleep (1)
 
     new_html = driver.page_source
     soup = BeautifulSoup (new_html, 'lxml')
@@ -50,17 +54,19 @@ while num_unique > 0:
                 answer_3 = answer_list [2].text
 
                 correct_answer = question.find ('div', class_ = "green")
-                correct_answer_2 = correct_answer.find ('div', class_ = "answer-text").text
 
-                data ['questions'].append ({
-                    'question': question_text,
-                    'answer1': answer_1,
-                    'answer2': answer_2,
-                    'answer3': answer_3,
-                    'answer': correct_answer_2,
-                    'category': '',
-                    'difficulty': (int (question.get ('id')) - 1) // 3 # Take a number from 1-12 and convert to a number from 0-3
-                })
+                if correct_answer is not None:
+                    correct_answer_2 = correct_answer.find ('div', class_ = "answer-text").text
+
+                    data ['questions'].append ({
+                        'question': question_text,
+                        'answer1': answer_1,
+                        'answer2': answer_2,
+                        'answer3': answer_3,
+                        'answer': correct_answer_2,
+                        'category': '',
+                        'difficulty': (int (question.get ('id')) - 1) // 3 # Take a number from 1-12 and convert to a number from 0-3
+                    })
 
     num_total += num_unique
     print ("Unique: %s Total: %s" % (num_unique, num_total))
@@ -71,6 +77,3 @@ with open ('output.txt', 'w') as outfile:
     json.dump (data, outfile)
 
 driver.quit ()
-
-# See if I can track duplicates then have a num_uniques variable to track how many unique questions per round I get
-# Then end the program when it hits 0 once or something
