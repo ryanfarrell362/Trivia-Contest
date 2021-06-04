@@ -1,16 +1,20 @@
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup
 import time
 import json
 
-# NOTE
-# Please run this with the browser on 25% scale otherwise the bot will click on an ad at some point
+PATH = "C:\Program Files (x86)\chromedriver.exe"
+path_to_extension = r'C:\Users\Me\Desktop\1.35.2_53'
+
+chrome_options = Options()
+chrome_options.add_argument('load-extension=' + path_to_extension)
+
+driver = webdriver.Chrome(PATH, chrome_options=chrome_options)
+driver.create_options()
 
 data = {}
 data ['questions'] = []
-
-PATH = "C:\Program Files (x86)\chromedriver.exe"
-driver = webdriver.Chrome (PATH)
 
 num_unique = 12
 num_total = 0
@@ -42,6 +46,7 @@ while num_unique > 0:
         if 'this' not in question_text.lower ():
             for p in data ['questions']:
                 if p['question'] == question_text:
+                    print ('duplicate detected')
                     same_question = True
                     break
 
@@ -70,7 +75,6 @@ while num_unique > 0:
 
     num_total += num_unique
     print ("Unique: %s Total: %s" % (num_unique, num_total))
-
     time.sleep (5)
 
 with open ('output.txt', 'w') as outfile:
