@@ -17,7 +17,9 @@
   },
   "homepage": "https://github.com/ryanfarrell362/Trivia-Contest#readme",
   "dependencies": {
+    "cron": "^1.8.2",
     "discord-buttons": "^2.4.1",
-    "discord.js": "^12.5.3"
+    "discord.js": "^12.5.3",
+    "mysql": "^2.18.1"
   }
 }

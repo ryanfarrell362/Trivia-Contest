@@ -1,6 +1,7 @@
 const Discord = require('discord.js');
 const client = new Discord.Client();
 const disbut = require('discord-buttons')(client);
+const mysql = require('mysql');
 
 const config = require('./config.json');
 
@@ -13,34 +14,54 @@ let latestEmbed; // This stores the most recently sent embed so that I can edit 
 let i, j;
 
 let contestantsArray = new Array ();
-
-let questions = {
-    "questions": ["In which continent is Mongolia located?", "What type of meat is on a traditional Reuben sandwich?", "What part of the world was once known as Cathay?", "What kind of animal is a peregrine?", "What is your astrological sign if you were born on Halloween?"],
-    "answer1": ["Asia", "Turkey", "Japan", "Bird", "Capricorn"],
-    "answer2": ["Europe", "Bologna", "China", "Fish", "Scorpio"],
-    "answer3": ["Oceania", "Corned Beef", "India", "Cat", "Libra"],
-    "answer": ["Asia", "Corned Beef", "China", "Bird", "Scorpio"],
-    "category": ["Geography", "Food", "History", "Animals", "Astrology"]
-}
+let questionsArray = new Array ();
 
 let numContestants = 0;
 let numAnswers = 0;
 let numRounds = 5; // Change this depending on the number of rounds you want to have
+
+let connection = mysql.createConnection({
+    host: 'localhost',
+    user: config.mysql.username,
+    password: config.mysql.password,
+    database: config.mysql.database
+});
+
+connection.connect(function(err) {
+    if (err) {
+        return console.error('error: ' + err.msg);
+    }
+
+    console.log('Connected to the MySQL server.');
+});
 
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
 });
 
 client.on("guildCreate", guild => {
-    serverInfo = guild;
+    serverInfo = guild.id;
 
-    guild.channels.create ('trivia', { reason: 'Need a dedicated trivia channel' })
+    let time = '2021-06-06 19:00:00'
+
+    let sql = "INSERT INTO servers (server_id, match_time) VALUES (?, ?)";
+    connection.query (sql, [serverInfo, time], function (err, result) {
+        if (err) throw err;
+		console.log ("New server added");
+    });
+
+    const channel = guild.channels.create ('trivia', { reason: 'Need a dedicated trivia channel' })
     .then(result => {
-        channelInfo = result;
+        channelInfo = result.id;
+        var sql = "UPDATE servers SET channel_id = ? WHERE server_id = ?";
+        connection.query (sql, [channelInfo, serverInfo], function (err, row) {
+            if (err) throw err;
+            console.log ('channel add success');
+        });
     })
     .catch(console.error);
 
-    guild.roles.create({
+    const role = guild.roles.create({
         data: {
             name: 'Trivia Contestant',
             color: 'BLUE',
@@ -48,7 +69,12 @@ client.on("guildCreate", guild => {
         reason: 'Need a role for the contestants to keep track of things',
     })
     .then(result => {
-        roleInfo = result;
+        roleInfo = result.id;
+        var sql = "UPDATE servers SET role_id = ? WHERE server_id = ?";
+        connection.query (sql, [roleInfo, serverInfo], function (err, row) {
+            if (err) throw err;
+            console.log ('role add success');
+        });
     })
     .catch(console.error);
 });
@@ -219,7 +245,7 @@ async function game (msg) {
 
         // Print the role and announce how many people got the right answer here
         if ((i + 1) != numRounds) {
-            const nextRoundEmbed = new Discord.MessageEmbed()
+            let nextRoundEmbed = new Discord.MessageEmbed()
             .setColor('#0099ff')
             .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
             .setTitle (`${numContestants} contestants got that question right!`)
