@@ -2,6 +2,7 @@ const Discord = require('discord.js');
 const client = new Discord.Client();
 const disbut = require('discord-buttons')(client);
 const mysql = require('mysql');
+const fs = require('fs');
 
 const config = require('./config.json');
 
@@ -18,7 +19,7 @@ let questionsArray = new Array ();
 
 let numContestants = 0;
 let numAnswers = 0;
-let numRounds = 5; // Change this depending on the number of rounds you want to have
+let numRounds = 8; // Change this depending on the number of rounds you want to have
 
 let connection = mysql.createConnection({
     host: 'localhost',
@@ -37,6 +38,18 @@ connection.connect(function(err) {
 
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
+
+    // Read the questions file and put all of them into the sql table
+    let rawData = fs.readFileSync('output.txt');
+    let questions = JSON.parse (rawData);
+
+    for (i = 0; i < questions.questions.length; i ++) {
+        let sql = "INSERT INTO questions (question, answer_1, answer_2, answer_3, answer, difficulty) VALUES (?, ?, ?, ?, ?, ?)";
+        connection.query (sql, [questions.questions [i].question, questions.questions [i].answer1, questions.questions [i].answer2, questions.questions [i].answer3, questions.questions [i].answer, questions.questions [i].difficulty], function (err, result) {
+            if (err) throw err;
+    		console.log ("New question added");
+        });
+    }
 });
 
 client.on("guildCreate", guild => {
@@ -134,6 +147,13 @@ async function game (msg) {
 
     latestEmbed.edit ({ button: signupButton, embed: latestEmbed [0] });
 
+    // Generate this game's questions
+    questionsArray = [];
+    questionsArray = await getQuestions (questionsArray, 0);
+    questionsArray = await getQuestions (questionsArray, 1);
+    questionsArray = await getQuestions (questionsArray, 2);
+    questionsArray = await getQuestions (questionsArray, 3);
+
     // These onclick listeners need to be inside the async function otherwise they don't work during the sleeps
     client.on('clickButton', async (button) => {
         if (button.id === 'answer1' || button.id === 'answer2' || button.id === 'answer3') {
@@ -149,7 +169,7 @@ async function game (msg) {
         .setColor('#0099ff')
         .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
         .setTitle (`Round ${(i + 1)} of ${numRounds}`)
-        .setDescription(`The category is: ${questions.category [i]}!`)
+        .setDescription(`The question will be posted in 5 seconds!`)
         .setTimestamp()
 
         msg.channel.send (roundAnnounceEmbed);
@@ -159,9 +179,9 @@ async function game (msg) {
         let timer = 15;
         let questionEmbed = createQuestionEmbed (timer);
 
-        let answer1 = createButtons ('green', questions.answer1 [i], 'answer1', false);
-        let answer2 = createButtons ('blurple', questions.answer2 [i], 'answer2', false);
-        let answer3 = createButtons ('red', questions.answer3 [i], 'answer3', false);
+        let answer1 = createButtons ('green', questionsArray [i].answer1, 'answer1', false);
+        let answer2 = createButtons ('blurple', questionsArray [i].answer2, 'answer2', false);
+        let answer3 = createButtons ('red', questionsArray [i].answer3, 'answer3', false);
 
         msg.channel.send({
             buttons: [
@@ -185,9 +205,9 @@ async function game (msg) {
                 });
         }
 
-        answer1 = createButtons ('green', questions.answer1 [i], 'answer1', true);
-        answer2 = createButtons ('blurple', questions.answer2 [i], 'answer2', true);
-        answer3 = createButtons ('red', questions.answer3 [i], 'answer3', true);
+        answer1 = createButtons ('green', questionsArray [i].answer1, 'answer1', true);
+        answer2 = createButtons ('blurple', questionsArray [i].answer2, 'answer2', true);
+        answer3 = createButtons ('red', questionsArray [i].answer3, 'answer3', true);
 
         timer = 0;
         questionEmbed = createQuestionEmbed (timer);
@@ -204,7 +224,7 @@ async function game (msg) {
         .setColor('#0099ff')
         .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
         .setTitle ('Time\'s up!')
-        .setDescription (`The answer was: ${questions.answer [i]}`)
+        .setDescription (`The answer was: ${questionsArray [i].answer}`)
 
         msg.channel.send (timeOverEmbed);
 
@@ -214,7 +234,7 @@ async function game (msg) {
         let anyCorrect = false;
 
         for (j = 0; j < numContestants; j ++) {
-            if (contestantsArray [j].answer.localeCompare (questions.answer [i]) == 0) {
+            if (contestantsArray [j].answer.localeCompare (questionsArray [i].answer) == 0) {
                 anyCorrect = true;
                 break;
             }
@@ -228,7 +248,7 @@ async function game (msg) {
         } else {
             // Otherwise find the people who got it wrong and kick them out
             for (j = numContestants - 1; j > -1; j --) {
-                if (contestantsArray [j].answer.localeCompare (questions.answer [i]) != 0) {
+                if (contestantsArray [j].answer.localeCompare (questionsArray [i].answer) != 0) {
                     removeRole ();
                 }
             }
@@ -274,6 +294,32 @@ async function game (msg) {
     roleReset ();
 }
 
+function getQuestions (questionsArray, difficulty) {
+    return new Promise ((resolve, reject) => {
+        connection.query (
+            "SELECT * FROM questions WHERE difficulty = ?",
+            [difficulty],
+            (err, result) => {
+                for (j = 0; j < 2; j ++) {
+                    let randomNum = Math.floor (Math.random () * result.length);
+
+                    let question = {
+                        "question": result [randomNum].question,
+                        "answer1": result [randomNum].answer_1,
+                        "answer2": result [randomNum].answer_2,
+                        "answer3": result [randomNum].answer_3,
+                        "answer": result [randomNum].answer
+                    }
+
+                    questionsArray.push (question);
+                }
+
+                return err ? reject (err) : resolve (questionsArray);
+            }
+        );
+    });
+}
+
 function answer (button) {
     // For all contestants, find if the user is in the contestants array
     // If they're not it means they're out of the game
@@ -286,11 +332,11 @@ function answer (button) {
 
             // Then figure out which option they picked and set their answer accordingly
             if (button.id === 'answer1') {
-                contestantsArray [j].answer = questions.answer1 [i];
+                contestantsArray [j].answer = questionsArray [i].answer1;
             } else if (button.id === 'answer2') {
-                contestantsArray [j].answer = questions.answer2 [i];
+                contestantsArray [j].answer = questionsArray [i].answer2;
             } else if (button.id === 'answer3') {
-                contestantsArray [j].answer = questions.answer3 [i];
+                contestantsArray [j].answer = questionsArray [i].answer3;
             }
         }
     }
@@ -311,7 +357,7 @@ function createQuestionEmbed (timer) {
     let questionEmbed = new Discord.MessageEmbed()
     .setColor('#0099ff')
     .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
-    .setTitle (`${questions.questions [i]}`)
+    .setTitle (`${questionsArray [i].question}`)
     .setDescription (`You have ${timer} seconds to answer`)
     .setTimestamp()
     .setFooter(`${numAnswers} answered`, 'https://i.imgur.com/dhA5PXS.png');
