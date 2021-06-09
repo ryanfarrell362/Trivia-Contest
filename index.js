@@ -99,6 +99,7 @@ client.on('message', msg => {
 
         msg.channel.send({ button: signupButton, embed: signupEmbed }).then (msg2 => {
             latestEmbed = msg2;
+            msg2.pin ();
         });
     } else if (msg.content === '!start2') {
         game (msg);
@@ -142,6 +143,12 @@ client.on('error', (err) => {
 });
 
 async function game (msg) {
+    // Remove the pin from the signup message
+    msg.channel.messages.fetchPinned ()
+    .then ((pinnedMessages) => {
+        pinnedMessages.each ((msg2) => msg2.unpin ().catch (console.error));
+    }) .catch (console.error);
+
     // Disable the signup button and edit the message
     let signupButton = createButtons ('green', 'Sign up', 'signup', true);
 
