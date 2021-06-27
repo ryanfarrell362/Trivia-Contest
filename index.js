@@ -3,12 +3,9 @@ const client = new Discord.Client();
 const disbut = require('discord-buttons')(client);
 const mysql = require('mysql');
 const fs = require('fs');
+var CronJob = require('cron').CronJob;
 
 const config = require('./config.json');
-
-let channelInfo;
-let roleInfo;
-let serverInfo;
 
 let latestEmbed; // This stores the most recently sent embed so that I can edit it when needed
 
@@ -21,11 +18,19 @@ let numContestants = 0;
 let numAnswers = 0;
 let numRounds = 8; // Change this depending on the number of rounds you want to have
 
+let serverID;
+let channelID;
+let roleID;
+
+let cronJobs = new Array ();
+
 let connection = mysql.createConnection({
     host: 'localhost',
     user: config.mysql.username,
     password: config.mysql.password,
-    database: config.mysql.database
+    database: config.mysql.database,
+    supportBigNumbers: true,
+    bigNumberStrings: true
 });
 
 connection.connect(function(err) {
@@ -39,38 +44,84 @@ connection.connect(function(err) {
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
 
-    // Read the questions file and put all of them into the sql table
-    let rawData = fs.readFileSync('output.txt');
-    let questions = JSON.parse (rawData);
+    let sql = "SELECT * FROM questions";
+    connection.query (sql, function (err, result) {
+        if (result.length == 0) {
+            // Read the questions file and put all of them into the sql table
+            let rawData = fs.readFileSync('output.txt');
+            let questions = JSON.parse (rawData);
 
-    for (i = 0; i < questions.questions.length; i ++) {
-        let sql = "INSERT INTO questions (question, answer_1, answer_2, answer_3, answer, difficulty) VALUES (?, ?, ?, ?, ?, ?)";
-        connection.query (sql, [questions.questions [i].question, questions.questions [i].answer1, questions.questions [i].answer2, questions.questions [i].answer3, questions.questions [i].answer, questions.questions [i].difficulty], function (err, result) {
-            if (err) throw err;
-    		console.log ("New question added");
-        });
-    }
+            for (i = 0; i < questions.questions.length; i ++) {
+                let sql = "INSERT INTO questions (question, answer_1, answer_2, answer_3, answer, difficulty) VALUES (?, ?, ?, ?, ?, ?)";
+                connection.query (sql, [questions.questions [i].question, questions.questions [i].answer1, questions.questions [i].answer2, questions.questions [i].answer3, questions.questions [i].answer, questions.questions [i].difficulty], function (err, result) {
+                    if (err) throw err;
+            		console.log ("New question added");
+                });
+            }
+        }
+    });
+
+    // Cron job creation goes here
+    // Make sure to check if date and time have been set yet
+    // If not then skip that server
+    sql = "SELECT * FROM servers";
+    connection.query (sql, [], function (err, result) {
+        for (i = 0; i < result.length; i ++) {
+            result [i].hour -= 1;
+
+            if (result [i].hour == -1) {
+                result [i].hour = 23;
+                result [i].date -= 1;
+            }
+
+            if (result [i].date == -1) {
+                result [i].date = 6;
+            }
+
+            let cronString = result [i].minute + " " +  result [i].hour + " * * " + result [i].date;
+
+            console.log (cronString);
+
+            serverID = result [i].server_id;
+            channelID = result [i].channel_id;
+            roleID = result [i].role_id;
+
+            let job = new CronJob(`${cronString}`, function() {
+                signup (serverID, channelID, roleID);
+            }, null, true, 'America/New_York');
+
+            job.start();
+
+            cronJobs.push (job);
+        }
+    });
 });
 
 client.on("guildCreate", guild => {
-    serverInfo = guild.id;
-
-    let time = '2021-06-06 19:00:00'
-
-    let sql = "INSERT INTO servers (server_id, match_time) VALUES (?, ?)";
-    connection.query (sql, [serverInfo, time], function (err, result) {
+    let sql = "INSERT INTO servers (server_id) VALUES (?)";
+    connection.query (sql, [guild.id], function (err, result) {
         if (err) throw err;
 		console.log ("New server added");
     });
 
     const channel = guild.channels.create ('trivia', { reason: 'Need a dedicated trivia channel' })
     .then(result => {
-        channelInfo = result.id;
         var sql = "UPDATE servers SET channel_id = ? WHERE server_id = ?";
-        connection.query (sql, [channelInfo, serverInfo], function (err, row) {
+        connection.query (sql, [result.id, guild.id], function (err, row) {
             if (err) throw err;
             console.log ('channel add success');
         });
+
+        // Send embed to channel on how to setup the bot
+        let embed = new Discord.MessageEmbed()
+        .setColor('#0099ff')
+        .setAuthor('Trivia Contest', 'https://i.imgur.com/dhA5PXS.png')
+        .setTitle (`Thank you for adding Trivia Bot!`)
+        .setDescription ('Use !time to setup Trivia Bot')
+        .addField ('!time [day of week (0 - 6)] [time of day (24 hr time)]', 'Ex. !time 2 15:00', false)
+        .setTimestamp()
+
+        result.send (embed);
     })
     .catch(console.error);
 
@@ -82,9 +133,8 @@ client.on("guildCreate", guild => {
         reason: 'Need a role for the contestants to keep track of things',
     })
     .then(result => {
-        roleInfo = result.id;
         var sql = "UPDATE servers SET role_id = ? WHERE server_id = ?";
-        connection.query (sql, [roleInfo, serverInfo], function (err, row) {
+        connection.query (sql, [result.id, guild.id], function (err, row) {
             if (err) throw err;
             console.log ('role add success');
         });
@@ -92,23 +142,42 @@ client.on("guildCreate", guild => {
     .catch(console.error);
 });
 
-client.on('message', msg => {
-    if (msg.content === '!start') {
-        let signupEmbed = createSignupEmbed ();
-        let signupButton = createButtons ('green', 'Sign up', 'signup', false);
+client.on("guildDelete", guild => {
+    let sql = "DELETE FROM servers WHERE server_id = ?";
+    connection.query (sql, [guild.id], function (err, result) {
+        if (err) throw err;
+    });
 
-        msg.channel.send({ button: signupButton, embed: signupEmbed }).then (msg2 => {
-            latestEmbed = msg2;
-            msg2.pin ();
-        });
-    } else if (msg.content === '!start2') {
-        game (msg);
+    // Also delete channel and role
+    // And remove cron job from array
+});
+
+client.on('message', msg => {
+    let params = msg.content.split (" ");
+
+    if (params [0] === '!time' && (msg.author.id === msg.guild.ownerID)) {
+        // Set time for bot
+        let date = params [1];
+        let time = params [2].split (":");
+
+        if (date >= 0 && date <= 6 && time [0] >= 0 && time [0] <= 23 && time [1] >= 0 && time [1] <= 59) {
+            let sql = "UPDATE servers SET date = ?, hour = ?, minute = ? WHERE server_id = ?";
+            connection.query (sql, [date, time [0], time [1], msg.guild.id], function (err, result) {
+                if (err) throw err;
+                msg.channel.send ('Date and time set successfully!');
+
+                // Will then need to add cron job to array and also replace an existing job if the server is just updating the time
+
+            });
+        } else {
+            msg.channel.send ('Invalid date or time.');
+        }
     }
 });
 
 client.on('clickButton', async (button) => {
+    // Figure out which cron job is the right one from the button ids then edit those
     button.defer ()
-    // Remember to put this listener in my signup function when I make it because it won't work otherwise
     if (button.id === 'signup') {
         let roleExist = false;
 
@@ -142,17 +211,45 @@ client.on('error', (err) => {
     console.log (`Internet outage at: ${date}`);
 });
 
-async function game (msg) {
+async function signup (serverID, channelID, roleID) {
+    let signupEmbed = createSignupEmbed ();
+    let signupButton = createButtons ('green', 'Sign up', 'signup', false);
+
+    let channel = await client.channels.fetch (channelID);
+    channel.send({ button: signupButton, embed: signupEmbed }).then (msg2 => {
+        latestEmbed = msg2;
+        msg2.pin ();
+    });
+
+    for (i = 0; i < 660; i ++) {
+        await sleep (5000);
+    }
+
+    channel.send (`5 minutes until trivia! <@&${roleID}>`);
+
+    for (i = 0; i < 60; i ++) {
+        await sleep (5000);
+    }
+
+    if (numContestants > 0) {
+        game (serverID, channelID, roleID);
+    }
+}
+
+async function game (serverID, channelID, roleID) {
+    let channel = await client.channels.fetch (channelID);
+
     // Remove the pin from the signup message
-    msg.channel.messages.fetchPinned ()
+    channel.messages.fetchPinned ()
     .then ((pinnedMessages) => {
         pinnedMessages.each ((msg2) => msg2.unpin ().catch (console.error));
-    }) .catch (console.error);
+    }).catch (console.error);
 
     // Disable the signup button and edit the message
     let signupButton = createButtons ('green', 'Sign up', 'signup', true);
+    let signupEmbed = createSignupEmbed ();
 
-    latestEmbed.edit ({ button: signupButton, embed: latestEmbed [0] });
+    latestEmbed.edit ({ button: signupButton, embed: signupEmbed });
 
     // Generate this game's questions
     questionsArray = [];
@@ -179,7 +276,7 @@ async function game (msg) {
         .setDescription(`The question will be posted in 5 seconds!`)
         .setTimestamp()
 
-        msg.channel.send (roundAnnounceEmbed);
+        channel.send (roundAnnounceEmbed);
 
         await sleep (5000); // Wait 5 seconds after announcing the category to post the question
 
@@ -190,7 +287,7 @@ async function game (msg) {
         let answer2 = createButtons ('blurple', questionsArray [i].answer2, 'answer2', false);
         let answer3 = createButtons ('red', questionsArray [i].answer3, 'answer3', false);
 
-        msg.channel.send({
+        channel.send({
             buttons: [
                 answer1, answer2, answer3
             ],
@@ -233,7 +330,7 @@ async function game (msg) {
         .setTitle ('Time\'s up!')
         .setDescription (`The answer was: ${questionsArray [i].answer}`)
 
-        msg.channel.send (timeOverEmbed);
+        channel.send (timeOverEmbed);
 
         await sleep (7000);
 
@@ -249,7 +346,7 @@ async function game (msg) {
 
         if (anyCorrect == false) {
             // If nobody got it correct, the winners are everyone from who made it to this round
-            printWinners (msg);
+            printWinners (channel);
             roleReset ();
             break;
         } else {
@@ -262,7 +359,7 @@ async function game (msg) {
 
             if (numContestants == 1) {
                 // If there's one person left then the game is over
-                printWinners (msg);
+                printWinners (channel);
                 roleReset ();
                 break;
             }
@@ -279,11 +376,11 @@ async function game (msg) {
             .setDescription ('1 minute until the next round!\nIf you receive a ping then you are eligible for the next round!')
             .setTimestamp()
 
-            msg.channel.send (nextRoundEmbed);
+            channel.send (nextRoundEmbed);
 
             let role = contestantsArray [0].user.member.guild.roles.cache.find(r => r.name === "Trivia Contestant");
 
-            msg.channel.send (`<@&${role.id}>`);
+            channel.send (`<@&${roleID}>`);
 
             for (j = 0; j < numContestants; j ++) {
                 contestantsArray [j].answer = "blank";
@@ -295,7 +392,7 @@ async function game (msg) {
 
     // If there are still players left after all questions have been exhausted then the game is over
     // Write all winners here
-    printWinners (msg);
+    printWinners (channel);
 
     // Then remove the contestant role from everyone
     roleReset ();
@@ -406,7 +503,7 @@ function removeRole () {
     numContestants --;
 }
 
-function printWinners (msg) {
+function printWinners (channel) {
     let mention = (`<@${contestantsArray [0].user.user.id}>`); // This line gets angry but works just fine. Investigate further
 
     for (j = 1; j < numContestants; j ++) {
@@ -421,7 +518,7 @@ function printWinners (msg) {
     .addField ('Trivia Champion(s):', mention)
     .setTimestamp()
 
-    msg.channel.send (winnerEmbed);
+    channel.send (winnerEmbed);
 }
 
 function sleep (ms) {
