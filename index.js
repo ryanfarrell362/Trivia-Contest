@@ -23,6 +23,7 @@ let channelID;
 let roleID;
 
 let cronJobs = new Array ();
+let ids = new Array ();
 
 let connection = mysql.createConnection({
     host: 'localhost',
@@ -80,14 +81,16 @@ client.on('ready', () => {
 
             let cronString = result [i].minute + " " +  result [i].hour + " * * " + result [i].date;
 
-            console.log (cronString);
+            let idPackage = {
+                serverID = result [i].server_id,
+                channelID = result [i].channel_id,
+                roleID = result [i].role_id
+            };
 
-            serverID = result [i].server_id;
-            channelID = result [i].channel_id;
-            roleID = result [i].role_id;
-
+            ids.push (idPackage);
+            
             let job = new CronJob(`${cronString}`, function() {
-                signup (serverID, channelID, roleID);
+                signup ();
             }, null, true, 'America/New_York');
 
             job.start();
@@ -150,6 +153,7 @@ client.on("guildDelete", guild => {
 
     // Also delete channel and role
     // And remove cron job from array
+    // Remember to pause the job just in case
 });
 
 client.on('message', msg => {
@@ -176,7 +180,6 @@ client.on('message', msg => {
 });
 
 client.on('clickButton', async (button) => {
-    // Figure out which cron job is the right one from the button ids then edit those
     button.defer ()
     if (button.id === 'signup') {
         let roleExist = false;
@@ -211,7 +214,11 @@ client.on('error', (err) => {
     console.log (`Internet outage at: ${date}`);
 });
 
-async function signup (serverID, channelID, roleID) {
+async function signup () {
+    serverID =
+    channelID =
+    roleID =
+
     let signupEmbed = createSignupEmbed ();
     let signupButton = createButtons ('green', 'Sign up', 'signup', false);
 
